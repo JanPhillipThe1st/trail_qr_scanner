@@ -27,7 +27,8 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
         body: Container(
       width: double.infinity,
-      child: Column(
+      child: ListView(
+        scrollDirection: Axis.vertical,
         children: [
           Padding(padding: EdgeInsets.symmetric(vertical: 80)),
           Text("RACETECH",
@@ -47,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           side: BorderSide(),
                           borderRadius: BorderRadius.circular(40))),
                   child:
-                      Text("QR Scan", style: TextStyle(color: Colors.black)))),
+                      Text("QR SCAN", style: TextStyle(color: Colors.black)))),
           Padding(padding: EdgeInsets.symmetric(vertical: 2)),
           TextButton(
               onPressed: () {
@@ -61,8 +62,24 @@ class _SplashScreenState extends State<SplashScreen> {
                       shape: RoundedRectangleBorder(
                           side: BorderSide(),
                           borderRadius: BorderRadius.circular(40))),
-                  child: Text("RFID Scan",
+                  child: Text("RFID SCAN",
                       style: TextStyle(color: Colors.black)))),
+          Padding(padding: EdgeInsets.symmetric(vertical: 2)),
+          TextButton(
+              onPressed: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: ((context) => RFIDScan())));
+              },
+              child: Container(
+                  margin: EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: 80, vertical: 20),
+                  decoration: ShapeDecoration(
+                      shape: RoundedRectangleBorder(
+                          side: BorderSide(),
+                          borderRadius: BorderRadius.circular(40))),
+                  child: Text("BLUETOOTH SCAN",
+                      style: TextStyle(color: Colors.black)))),
+          Padding(padding: EdgeInsets.symmetric(vertical: 2)),
           Padding(padding: EdgeInsets.symmetric(vertical: 2)),
           TextButton(
               onPressed: () async {
@@ -84,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         side: BorderSide(),
                         borderRadius: BorderRadius.circular(40))),
                 child:
-                    Text("View Results", style: TextStyle(color: Colors.black)),
+                    Text("VIEW RESULTS", style: TextStyle(color: Colors.black)),
               )),
         ],
       ),

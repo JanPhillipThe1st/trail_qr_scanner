@@ -463,7 +463,6 @@ class _ScanDetailsState extends State<ScanDetails> {
                               });
                         },
                       );
-                      // set up the AlertDialog
                       AlertDialog alert = AlertDialog(
                         title: Text("Finish Scanning"),
                         content:
@@ -473,7 +472,6 @@ class _ScanDetailsState extends State<ScanDetails> {
                           continueButton,
                         ],
                       );
-                      // show the dialog
                       showDialog(
                         context: context,
                         builder: (BuildContext context) {
@@ -498,7 +496,6 @@ class _ScanDetailsState extends State<ScanDetails> {
 
   @override
   void dispose() {
-    // TODO: implement dispose
     super.dispose();
   }
 }

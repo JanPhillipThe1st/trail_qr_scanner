@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:trail_qr_scanner/models/Barcode.dart';
 import 'package:trail_qr_scanner/models/file_handler.dart';
+import 'package:trail_qr_scanner/models/scan_config.dart';
 import 'package:trail_qr_scanner/utils/colors.dart';
 import 'package:intl/intl.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
@@ -24,6 +26,7 @@ class _RFIDScanState extends State<RFIDScan> {
   List<BarcodeData> barcodes = [];
   bool isScanning = true;
   List<String> list = ["Check-in", "Timing checkpoint", "Finish line"];
+  ScanConfig? scanConfig;
   String dropdownValue = "";
   TextEditingController _RFIDCode = TextEditingController(text: "");
   TextEditingController _raceIDController = TextEditingController(text: "");
@@ -35,9 +38,20 @@ class _RFIDScanState extends State<RFIDScan> {
   FileHandler fl = FileHandler.instance;
   Future getBarcodesFromFiles() async {
     barcodes = await fl.readBarcode();
+    await fl.restoreScanConfig().then((value) {
+      _raceIDController.text = value.raceID;
+      if (value.order == null) {
+        _orderController.text = "0";
+      } else {
+        _orderController.text = value.order.toString();
+      }
+      _scanningPointController.text = value.scanningPoint;
+    });
     setState(() {});
   }
 
+  StreamSubscription? _homeButtonSubscription;
+  StreamSubscription? _powerButtonSubscription;
   final FocusNode _focusNode = FocusNode();
   @override
   void initState() {
@@ -79,9 +93,16 @@ class _RFIDScanState extends State<RFIDScan> {
                         child: KeyboardListener(
                           autofocus: true,
                           onKeyEvent: (value) async {
+                            // 4294967309
                             if (value is KeyDownEvent) {
-                              if (value.logicalKey ==
-                                  LogicalKeyboardKey.enter) {
+                              if (value.logicalKey.keyId ==
+                                      LogicalKeyboardKey.enter.keyId ||
+                                  value.logicalKey ==
+                                      LogicalKeyboardKey.enter ||
+                                  value.logicalKey ==
+                                      LogicalKeyboardKey.accept ||
+                                  value.physicalKey ==
+                                      PhysicalKeyboardKey.enter) {
                                 if (_raceIDController.text == "" ||
                                     _orderController.text == "" ||
                                     _scanningPointController.text == "") {
@@ -105,13 +126,12 @@ class _RFIDScanState extends State<RFIDScan> {
                                     //how cooler can this thing get????
                                     _RFIDCode.text = "";
                                     barcodeString = "";
-                                    barcodes = [
-                                      ...{...barcodes}
-                                    ];
 
                                     await fl.writeBarcodeData(barcodeData!);
                                     barcodes = await fl.readBarcode();
-                                    setState(() {});
+                                    setState(() {
+                                      getBarcodesFromFiles();
+                                    });
                                   }
                                 } else {
                                   barcodeData = BarcodeData(
@@ -125,12 +145,14 @@ class _RFIDScanState extends State<RFIDScan> {
                                   _RFIDCode.text = "";
                                   barcodeString = "";
 
-                                  barcodes = [
-                                    ...{...barcodes}
-                                  ];
+                                  // barcodes = [
+                                  //   ...{...barcodes}
+                                  // ];
                                   await fl.writeBarcodeData(barcodeData!);
                                   barcodes = await fl.readBarcode();
-                                  setState(() {});
+                                  setState(() {
+                                    getBarcodesFromFiles();
+                                  });
                                 }
                               } else {
                                 if (value.character != null) {
@@ -175,7 +197,13 @@ class _RFIDScanState extends State<RFIDScan> {
                       gradient: primaryGradient,
                     ),
                     child: TextButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        scanConfig = ScanConfig(
+                            order: int.parse(_orderController.text),
+                            raceID: _raceIDController.text,
+                            scanType: dropdownValue,
+                            scanningPoint: _scanningPointController.text);
+                        await fl.saveScanConfig(scanConfig!);
                         setState(() {
                           _focusNode.requestFocus();
                           if (!isScanning) {
@@ -460,6 +488,12 @@ class _RFIDScanState extends State<RFIDScan> {
 
   @override
   void dispose() {
+    scanConfig = ScanConfig(
+        order: int.parse(_orderController.text),
+        raceID: _raceIDController.text,
+        scanType: dropdownValue,
+        scanningPoint: _scanningPointController.text);
+    fl.saveScanConfig(scanConfig!);
     super.dispose();
   }
 }

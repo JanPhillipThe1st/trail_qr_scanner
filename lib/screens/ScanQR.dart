@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:trail_qr_scanner/widgets/custom_dropdown.dart';
 import 'package:trail_qr_scanner/widgets/custom_text_field.dart';
 
+import '../models/scan_config.dart';
 import 'ScanDetails.dart';
 
 class ScanQR extends StatefulWidget {
@@ -27,6 +29,7 @@ class _ScanQRState extends State<ScanQR> {
   QRViewController? controller;
   List<String> list = ["Check-in", "Timing checkpoint", "Finish line"];
   String dropdownValue = "";
+  ScanConfig? scanConfig;
   TextEditingController _raceIDController = TextEditingController(text: "");
   TextEditingController _orderController = TextEditingController(text: "1");
   TextEditingController _scanningPointController =
@@ -46,12 +49,20 @@ class _ScanQRState extends State<ScanQR> {
   FileHandler fl = FileHandler.instance;
   Future getBarcodesFromFiles() async {
     barcodes = await fl.readBarcode();
+    await fl.restoreScanConfig().then((value) {
+      _raceIDController.text = value.raceID;
+      _orderController.text = value.order.toString();
+      _scanningPointController.text = value.scanningPoint;
+    });
     setState(() {});
   }
 
   void closedScreen() {
     getBarcodesFromFiles();
   }
+
+  StreamSubscription? _homeButtonSubscription;
+  StreamSubscription? _powerButtonSubscription;
 
   @override
   void initState() {
@@ -94,7 +105,13 @@ class _ScanQRState extends State<ScanQR> {
                       gradient: primaryGradient,
                     ),
                     child: TextButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        scanConfig = ScanConfig(
+                            order: int.parse(_orderController.text),
+                            raceID: _raceIDController.text,
+                            scanType: dropdownValue,
+                            scanningPoint: _scanningPointController.text);
+                        await fl.saveScanConfig(scanConfig!);
                         setState(() {
                           if (!isScanning) {
                             isScanning = true;
@@ -130,13 +147,15 @@ class _ScanQRState extends State<ScanQR> {
                     ),
                     Padding(padding: EdgeInsets.symmetric(vertical: 10)),
                     Container(
-                      child: CustomTextField(
-                        onEditingDone: () {},
-                        controller: _raceIDController,
-                        inputType: TextInputType.text,
-                        enabled: !isScanning,
-                        width: 200,
-                      ),
+                      child: !isScanning
+                          ? CustomTextField(
+                              onEditingDone: () {},
+                              controller: _raceIDController,
+                              inputType: TextInputType.text,
+                              enabled: !isScanning,
+                              width: 200,
+                            )
+                          : Text(_raceIDController.text),
                       width: 300,
                     ),
                     const Padding(padding: EdgeInsets.symmetric(vertical: 5)),
@@ -155,35 +174,38 @@ class _ScanQRState extends State<ScanQR> {
                           shape: RoundedRectangleBorder(
                               side: BorderSide(),
                               borderRadius: BorderRadius.circular(10))),
-                      child: DropdownButton<String>(
-                        value: dropdownValue,
-                        icon: const Icon(
-                          Icons.arrow_drop_down_rounded,
-                          size: 40,
-                        ),
-                        elevation: 16,
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Color.fromARGB(255, 70, 100, 121),
-                            fontStyle: FontStyle.italic),
-                        underline: Container(
-                          height: 2,
-                        ),
-                        onChanged: (String? value) {
-                          // This is called when the user selects an item.
-                          setState(() {
-                            dropdownValue = value!;
-                          });
-                        },
-                        items:
-                            list.map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Container(width: 300, child: Text(value)),
-                          );
-                        }).toList(),
-                      ),
+                      child: !isScanning
+                          ? DropdownButton<String>(
+                              value: dropdownValue,
+                              icon: const Icon(
+                                Icons.arrow_drop_down_rounded,
+                                size: 40,
+                              ),
+                              elevation: 16,
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color.fromARGB(255, 70, 100, 121),
+                                  fontStyle: FontStyle.italic),
+                              underline: Container(
+                                height: 2,
+                              ),
+                              onChanged: (String? value) {
+                                // This is called when the user selects an item.
+                                setState(() {
+                                  dropdownValue = value!;
+                                });
+                              },
+                              items: list.map<DropdownMenuItem<String>>(
+                                  (String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child:
+                                      Container(width: 300, child: Text(value)),
+                                );
+                              }).toList(),
+                            )
+                          : Text(dropdownValue),
                       width: 300,
                     ),
                     Padding(padding: EdgeInsets.symmetric(vertical: 10)),
@@ -207,12 +229,14 @@ class _ScanQRState extends State<ScanQR> {
                                         padding:
                                             EdgeInsets.symmetric(vertical: 4)),
                                     Container(
-                                      child: CustomTextField(
-                                        onEditingDone: () {},
-                                        controller: _orderController,
-                                        inputType: TextInputType.number,
-                                        width: 100,
-                                      ),
+                                      child: !isScanning
+                                          ? CustomTextField(
+                                              onEditingDone: () {},
+                                              controller: _orderController,
+                                              inputType: TextInputType.number,
+                                              width: 100,
+                                            )
+                                          : Text(_orderController.text),
                                     )
                                   ],
                                 ),
@@ -229,13 +253,16 @@ class _ScanQRState extends State<ScanQR> {
                                         padding:
                                             EdgeInsets.symmetric(vertical: 4)),
                                     Container(
-                                      child: CustomTextField(
-                                        onEditingDone: () {},
-                                        enabled: !isScanning,
-                                        controller: _scanningPointController,
-                                        inputType: TextInputType.text,
-                                        width: 200,
-                                      ),
+                                      child: !isScanning
+                                          ? CustomTextField(
+                                              onEditingDone: () {},
+                                              controller:
+                                                  _scanningPointController,
+                                              enabled: !isScanning,
+                                              inputType: TextInputType.text,
+                                              width: 200,
+                                            )
+                                          : Text(_scanningPointController.text),
                                     )
                                   ],
                                 )
@@ -268,19 +295,16 @@ class _ScanQRState extends State<ScanQR> {
                               ? RefreshIndicator(
                                   onRefresh: getBarcodesFromFiles,
                                   child: ListView.builder(
+                                      itemExtent: 60,
+                                      padding: EdgeInsets.zero,
                                       itemCount: barcodes.length,
                                       itemBuilder: (context, index) =>
                                           Container(
-                                            height: 80,
-                                            margin: EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 0),
                                             decoration: ShapeDecoration(
                                                 shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(5),
                                             )),
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 10),
                                             child: TextButton(
                                               onPressed: () async {
                                                 Navigator.of(context).push(
@@ -298,16 +322,17 @@ class _ScanQRState extends State<ScanQR> {
                                                     Axis.horizontal,
                                                 children: [
                                                   Container(
-                                                    padding: EdgeInsets.all(5),
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            vertical: 10,
+                                                            horizontal: 5),
                                                     decoration: ShapeDecoration(
                                                         color: Colors.black,
                                                         shape: RoundedRectangleBorder(
                                                             borderRadius:
                                                                 BorderRadius
                                                                     .circular(
-                                                                        2),
-                                                            side:
-                                                                BorderSide())),
+                                                                        2))),
                                                     child: Text(
                                                       barcodes[index].data,
                                                       style: TextStyle(
@@ -325,16 +350,17 @@ class _ScanQRState extends State<ScanQR> {
                                                           EdgeInsets.symmetric(
                                                               horizontal: .3)),
                                                   Container(
-                                                    padding: EdgeInsets.all(10),
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            vertical: 10,
+                                                            horizontal: 5),
                                                     decoration: ShapeDecoration(
                                                         color: Colors.black,
                                                         shape: RoundedRectangleBorder(
                                                             borderRadius:
                                                                 BorderRadius
                                                                     .circular(
-                                                                        2),
-                                                            side:
-                                                                BorderSide())),
+                                                                        2))),
                                                     child: Text(
                                                       "Time: ${DateFormat.yM().add_jms().format(barcodes[index].dateScanned)}",
                                                       style: TextStyle(
@@ -358,7 +384,7 @@ class _ScanQRState extends State<ScanQR> {
                     ),
                   ],
                 ),
-              )),
+              ))
         ],
       ),
     );
@@ -385,18 +411,13 @@ class _ScanQRState extends State<ScanQR> {
               raceID: _raceIDController.text,
               order: int.parse(_orderController.text),
               scanningPoint: _scanningPointController.text);
-          //create an offline copy of the barcode data
-          //code to filter out duplicates in a single damn line
-          //how cooler can this thing get????
 
           barcodes = [
             ...{...barcodes}
           ];
-          // controller.pauseCamera();
           controller.pauseCamera();
           await fl.writeBarcodeData(barcodeData!);
           barcodes = await fl.readBarcode();
-          // sleep(Duration(milliseconds: 100));
           isScanning = false;
         }
       } else {
@@ -407,17 +428,13 @@ class _ScanQRState extends State<ScanQR> {
             raceID: _raceIDController.text,
             order: int.parse(_orderController.text),
             scanningPoint: _scanningPointController.text);
-        //create an offline copy of the barcode data
-        //code to filter out duplicates in a single line
 
         barcodes = [
           ...{...barcodes}
         ];
-        // controller.pauseCamera();
         controller.pauseCamera();
         await fl.writeBarcodeData(barcodeData!);
         barcodes = await fl.readBarcode();
-        // sleep(Duration(milliseconds: 100));
         isScanning = false;
       }
       setState(() {});
@@ -426,7 +443,13 @@ class _ScanQRState extends State<ScanQR> {
 
   @override
   void dispose() {
-    super.dispose();
+    scanConfig = ScanConfig(
+        order: int.parse(_orderController.text),
+        raceID: _raceIDController.text,
+        scanType: dropdownValue,
+        scanningPoint: _scanningPointController.text);
+    fl.saveScanConfig(scanConfig!);
     barcodes = [];
+    super.dispose();
   }
 }
