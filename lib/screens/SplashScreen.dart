@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:trail_qr_scanner/models/file_handler.dart';
 import 'package:trail_qr_scanner/screens/RFIDScan.dart';
 import 'package:trail_qr_scanner/screens/ScanQR.dart';
+import 'package:trail_qr_scanner/screens/bluetooth.dart';
+import 'package:trail_qr_scanner/screens/bluetooth_scanning.dart';
 
 import '../models/Barcode.dart';
 import 'ScanDetails.dart';
@@ -67,8 +69,11 @@ class _SplashScreenState extends State<SplashScreen> {
           Padding(padding: EdgeInsets.symmetric(vertical: 2)),
           TextButton(
               onPressed: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: ((context) => RFIDScan())));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        // builder: ((context) => BluetoothScanning())));
+                        builder: ((context) => BluetoothScanning())));
               },
               child: Container(
                   margin: EdgeInsets.symmetric(horizontal: 20),

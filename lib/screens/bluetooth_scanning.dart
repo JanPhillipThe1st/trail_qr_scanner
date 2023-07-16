@@ -8,23 +8,26 @@ import 'package:intl/intl.dart';
 import 'package:trail_qr_scanner/models/Barcode.dart';
 import 'package:trail_qr_scanner/models/file_handler.dart';
 import 'package:trail_qr_scanner/models/scan_config.dart';
+import 'package:trail_qr_scanner/screens/bluetooth_registration.dart';
 import 'package:trail_qr_scanner/utils/colors.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:trail_qr_scanner/widgets/custom_text_field.dart';
 
 import 'ScanDetails.dart';
 
-class RFIDScan extends StatefulWidget {
-  const RFIDScan({super.key});
+class BluetoothScanning extends StatefulWidget {
+  const BluetoothScanning({super.key});
 
   @override
-  State<RFIDScan> createState() => _RFIDScanState();
+  State<BluetoothScanning> createState() => _BluetoothScanningState();
 }
 
-class _RFIDScanState extends State<RFIDScan> {
+class _BluetoothScanningState extends State<BluetoothScanning> {
   List<BarcodeData> barcodes = [];
-  bool isScanning = true;
+  bool isScanning = false;
   List<String> list = ["Check-in", "Timing checkpoint", "Finish line"];
   ScanConfig? scanConfig;
   String dropdownValue = "";
@@ -50,13 +53,36 @@ class _RFIDScanState extends State<RFIDScan> {
     setState(() {});
   }
 
-  StreamSubscription? _homeButtonSubscription;
-  StreamSubscription? _powerButtonSubscription;
+  Stream<ScanResult>? _bluetoothDevicesSubscription;
   final FocusNode _focusNode = FocusNode();
+
+  FlutterBluePlus flutterBlue = FlutterBluePlus.instance;
+  Future<void> listenToBluetooth() async {
+    Permission.bluetoothConnect.request();
+    Permission.bluetoothScan.request();
+    print(flutterBlue.isAvailable.toString());
+    if (flutterBlue.isScanningNow) {
+      flutterBlue.stopScan();
+    } else {
+      flutterBlue = FlutterBluePlus.instance;
+      _bluetoothDevicesSubscription =
+          flutterBlue.scan(scanMode: ScanMode.lowLatency);
+      // Listen to scan results
+      flutterBlue.scanResults.listen((event) async {
+        event.forEach((element) async {
+          await element.device.pair();
+          print("Service: ${element}");
+        });
+      });
+    }
+  }
+
   @override
   void initState() {
     // TODO: implement initState
+
     getBarcodesFromFiles();
+    // listenToBluetooth();
     super.initState();
   }
 
@@ -67,7 +93,7 @@ class _RFIDScanState extends State<RFIDScan> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text("RFID Scanning mode"),
+        title: const Text("Bluetooth Scanning mode"),
       ),
       body: Column(
         children: <Widget>[
@@ -95,76 +121,6 @@ class _RFIDScanState extends State<RFIDScan> {
                         padding: EdgeInsets.symmetric(horizontal: 10),
                         child: KeyboardListener(
                           autofocus: true,
-                          onKeyEvent: (value) async {
-                            // 4294967309
-                            if (value is KeyDownEvent) {
-                              if (value.logicalKey.keyId ==
-                                      LogicalKeyboardKey.enter.keyId ||
-                                  value.logicalKey ==
-                                      LogicalKeyboardKey.enter ||
-                                  value.logicalKey ==
-                                      LogicalKeyboardKey.accept ||
-                                  value.physicalKey ==
-                                      PhysicalKeyboardKey.enter) {
-                                if (_raceIDController.text == "" ||
-                                    _orderController.text == "" ||
-                                    _scanningPointController.text == "") {
-                                  if (dropdownValue == list[1]) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                            content: Text(
-                                                "Please fill in all the fields before scanning.")));
-                                    return;
-                                  } else {
-                                    barcodeData = BarcodeData(
-                                        data: barcodeString,
-                                        scanType: dropdownValue,
-                                        dateScanned: DateTime.now(),
-                                        raceID: _raceIDController.text,
-                                        order: int.parse(_orderController.text),
-                                        scanningPoint:
-                                            _scanningPointController.text);
-                                    //create an offline copy of the barcode data
-                                    //code to filter out duplicates in a single damn line
-                                    //how cooler can this thing get????
-                                    _RFIDCode.text = "";
-                                    barcodeString = "";
-
-                                    await fl.writeBarcodeData(barcodeData!);
-                                    barcodes = await fl.readBarcode();
-                                    setState(() {
-                                      getBarcodesFromFiles();
-                                    });
-                                  }
-                                } else {
-                                  barcodeData = BarcodeData(
-                                      data: barcodeString,
-                                      scanType: dropdownValue,
-                                      dateScanned: DateTime.now(),
-                                      raceID: _raceIDController.text,
-                                      order: int.parse(_orderController.text),
-                                      scanningPoint:
-                                          _scanningPointController.text);
-                                  _RFIDCode.text = "";
-                                  barcodeString = "";
-
-                                  // barcodes = [
-                                  //   ...{...barcodes}
-                                  // ];
-                                  await fl.writeBarcodeData(barcodeData!);
-                                  barcodes = await fl.readBarcode();
-                                  setState(() {
-                                    getBarcodesFromFiles();
-                                  });
-                                }
-                              } else {
-                                if (value.character != null) {
-                                  barcodeString += value.character!;
-                                }
-                                setState(() {});
-                              }
-                            }
-                          },
                           focusNode: _focusNode,
                           child: Container(
                               width: 150,
@@ -176,14 +132,21 @@ class _RFIDScanState extends State<RFIDScan> {
                                     borderRadius: BorderRadius.circular(5),
                                     side: BorderSide()),
                               ),
-                              child: Text(barcodeString)),
+                              child: _bluetoothDevicesSubscription == null
+                                  ? Text("No Devices Nearby")
+                                  : StreamBuilder(
+                                      stream: _bluetoothDevicesSubscription,
+                                      builder: (context, snapshot) => Container(
+                                        child: Text(snapshot.data != null
+                                            ? snapshot.data!.device.name == ""
+                                                ? "Unnamed device"
+                                                : "No data for device"
+                                            : "No data for device"),
+                                      ),
+                                    )),
                         ),
                       ),
                       Padding(padding: EdgeInsets.symmetric(vertical: 10)),
-                      Text(
-                        "Note: Please use game mode on HID device",
-                        style: TextStyle(color: Colors.black, fontSize: 10),
-                      ),
                     ],
                   ),
           ),
@@ -210,8 +173,18 @@ class _RFIDScanState extends State<RFIDScan> {
                         setState(() {
                           _focusNode.requestFocus();
                           if (!isScanning) {
-                            isScanning = true;
+                            if (_raceIDController.text == "") {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(
+                                      "Please put a race ID before scanning")));
+                            } else {
+                              flutterBlue.stopScan;
+                              listenToBluetooth();
+                              isScanning = true;
+                            }
                           } else {
+                            flutterBlue.stopScan;
+                            _bluetoothDevicesSubscription = null;
                             isScanning = false;
                           }
                         });
@@ -487,16 +460,5 @@ class _RFIDScanState extends State<RFIDScan> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    scanConfig = ScanConfig(
-        order: int.parse(_orderController.text),
-        raceID: _raceIDController.text,
-        scanType: dropdownValue,
-        scanningPoint: _scanningPointController.text);
-    fl.saveScanConfig(scanConfig!);
-    super.dispose();
   }
 }

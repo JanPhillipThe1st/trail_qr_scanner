@@ -77,6 +77,9 @@ class _ScanQRState extends State<ScanQR> {
       dropdownValue = list.first;
     }
     return Scaffold(
+      appBar: AppBar(
+        title: Text("QR Scanning mode"),
+      ),
       body: Column(
         children: <Widget>[
           Padding(padding: EdgeInsets.symmetric(vertical: 25)),
